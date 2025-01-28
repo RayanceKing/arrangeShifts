@@ -1,81 +1,47 @@
-from itertools import combinations
+import pandas as pd
+import random
+from collections import defaultdict
 
-# 每天至少3人、最多4人
-MIN_PEOPLE_PER_DAY = 3
-MAX_PEOPLE_PER_DAY = 4
+df = pd.read_excel('index.xlsx', header=None, names=['姓名', '空闲天数'])
 
+available_days = defaultdict(list)
+shifts_count = {row['姓名']: 0 for _, row in df.iterrows()}
+schedule = {'周一': [], '周二': [], '周三': [], '周四': [], '周五': []}
 
-def assign_shifts(availability):
-    days = ['周一', '周二', '周三', '周四', '周五']
-    total_people = len(availability)
-    used_people = set()  # 已经被分配的人
-    schedule = {day: [] for day in days}  # 初始化排班表
+# 数据清洗（保持原逻辑）
+for _, row in df.iterrows():
+    name = row['姓名']
+    raw_days = str(row['空闲天数']).replace("星期", "").replace("周", "").split(',')
+    days = [d.strip() for d in raw_days if d.strip()]
+    days = [f"周{day}" for day in days if day in ['一','二','三','四','五']]
+    for day in days:
+        available_days[day].append(name)
 
-    # 确定需要安排4人的天数和3人的天数
-    four_person_days = 2
-    three_person_days = len(days) - four_person_days
+# 按可用人数排序
+sorted_days = sorted(schedule.keys(), key=lambda x: len(available_days[x]))
 
-    def backtrack(day_index, four_days_count):
-        """递归地为每天分配班次"""
-        if len(used_people) == total_people:  # 所有人都已分配
-            return True
-        if day_index >= len(days):  # 所有天已处理完
-            return False
+# 修正后的排班逻辑
+for day in sorted_days:
+    candidates = available_days[day]
+    
+    if len(candidates) < 3:
+        print(f"错误：{day} 可用人数不足3人，跳过排班")
+        continue
+    
+    required = 4 if len(candidates) >=4 else 3
+    random.shuffle(candidates)
+    candidates_sorted = sorted(candidates, key=lambda x: shifts_count[x])
+    
+    selected = candidates_sorted[:required]
+    
+    for person in selected:
+        shifts_count[person] += 1
+    
+    schedule[day] = selected
 
-        day = days[day_index]
-
-        # 找出当天的可用人员且未被分配过
-        available_people = [
-            person for person in availability if day in availability[person] and person not in used_people
-        ]
-
-        # 确定当天的人数要求
-        required_people = 4 if four_days_count < four_person_days else 3
-
-        # 尝试所有符合条件的组合
-        for combo in combinations(available_people, required_people):
-            # 更新状态
-            schedule[day] = list(combo)
-            used_people.update(combo)
-
-            # 递归处理下一天
-            if backtrack(day_index + 1, four_days_count + (required_people == 4)):
-                return True
-
-            # 回溯（撤销选择）
-            for person in combo:
-                used_people.remove(person)
-            schedule[day] = []
-
-        return False
-
-    if not backtrack(0, 0):
-        print("未找到满足条件的排班方案。")
-    return schedule
-
-
-# 输入：每个人的可用时间（移除18-22号）
-availability = {
-    1: ['周一', '周二', '周三'],
-    2: ['周三'],
-    3: ['周二', '周四'],
-    4: ['周一', '周三', '周五'],
-    5: ['周三', '周四'],
-    6: ['周四', '周五'],
-    7: ['周二'],
-    8: ['周四', '周五'],
-    9: ['周一', '周二', '周三', '周五'],
-    10: ['周一', '周三', '周五'],
-    11: ['周二', '周五'],
-    12: ['周四'],
-    13: ['周三', '周四', '周五'],
-    14: ['周二', '周五'],
-    15: ['周三', '周五'],
-    16: ['周一', '周二'],
-    17: ['周四', '周五']
-}
-
-# 执行排班并打印结果
-schedule = assign_shifts(availability)
-for day, people in schedule.items():
-    print(f"{day}: {people}")
+# 输出结果（保持原逻辑）
+pd.DataFrame([{
+    '工作日': day,
+    '值班人数': len(staff),
+    '人员列表': ', '.join(staff)
+} for day, staff in schedule.items()]).to_excel('排班结果.xlsx', index=False)
