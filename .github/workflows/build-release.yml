@@ -33,10 +33,15 @@ jobs:
 
       - name: Compress Build Artifact
         run: |
-          mkdir -p release
+          # 创建 release 目录，根据不同操作系统使用不同命令
+          if [ "${{ matrix.os }}" == "windows-latest" ]; then
+            New-Item -ItemType Directory -Force -Path release
+          else
+            mkdir -p release
+          fi
           if [ "${{ matrix.os }}" == "windows-latest" ]; then
             # Windows 下使用 PowerShell 压缩产物（假设生成的文件在 dist 目录下）
-            powershell -Command "Compress-Archive -Path 'dist\\*' -DestinationPath 'release/ScheduleApp-windows.zip'"
+            powershell -Command "Compress-Archive -Path 'dist/*' -DestinationPath 'release/ScheduleApp-windows.zip'"
           else
             # Linux 和 macOS 下使用 zip 命令压缩 dist 目录
             zip -r release/ScheduleApp-${{ matrix.os }}.zip dist/
