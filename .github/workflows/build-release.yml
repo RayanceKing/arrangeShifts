@@ -17,6 +17,10 @@ jobs:
           - os: windows-latest
             artifact_name: windows
     runs-on: ${{ matrix.os }}
+    outputs:
+      linux_artifact: ${{ steps.compress.outputs.linux }}
+      macos_artifact: ${{ steps.compress.outputs.macos }}
+      windows_artifact: ${{ steps.compress.outputs.windows }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -35,18 +39,22 @@ jobs:
         run: pyinstaller build.spec --clean
 
       - name: Compress Artifacts
+        id: compress
         shell: bash
         run: |
           mkdir -p release
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
               # 压缩 Windows 产物为 ZIP 文件
               7z a -tzip release/ScheduleApp-${{ matrix.artifact_name }}.zip dist/*.exe
+              echo "::set-output name=windows::release/ScheduleApp-${{ matrix.artifact_name }}.zip"
           elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
               # 压缩 macOS 产物为 ZIP 文件
               cd dist && zip -r ../release/ScheduleApp-${{ matrix.artifact_name }}.zip ScheduleApp.app
+              echo "::set-output name=macos::release/ScheduleApp-${{ matrix.artifact_name }}.zip"
           else
               # 压缩 Linux 产物为 TAR.GZ 文件
               tar czvf release/ScheduleApp-${{ matrix.artifact_name }}.tar.gz -C dist .
+              echo "::set-output name=linux::release/ScheduleApp-${{ matrix.artifact_name }}.tar.gz"
           fi
       
 
@@ -55,7 +63,7 @@ jobs:
         with:
           name: ScheduleApp-${{ matrix.artifact_name }}
           path: release/*
-
+          
   upload-release:
     needs: build  # 依赖于 build job
     runs-on: ubuntu-latest
@@ -70,8 +78,8 @@ jobs:
       - name: Download Artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: ScheduleApp-*
-          path: ./release  # 下载构建产物
+            pattern: ScheduleApp-*
+            path: ./release  # 下载构建产物
         
       - name: Check the files in ./release directory
         run: |
@@ -81,19 +89,20 @@ jobs:
       - name: Upload to Release
         run: |
             echo "Uploading files to GitHub release"
-            if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            if [[ "${{ needs.build.outputs.windows_artifact }}" != "" ]]; then
               gh release upload ${{ github.ref_name }} \
-                ./release/ScheduleApp-windows.zip \
+                ./release/${{ needs.build.outputs.windows_artifact }} \
                 --clobber
-            elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            fi
+            if [[ "${{ needs.build.outputs.macos_artifact }}" != "" ]]; then
               gh release upload ${{ github.ref_name }} \
-                ./release/ScheduleApp-macos.zip \
+                ./release/${{ needs.build.outputs.macos_artifact }} \
                 --clobber
-            # else
-            #   gh release upload ${{ github.ref_name }} \
-            #     ./release/ScheduleApp-linux.tar.gz \
-            #     --clobber
+            fi
+            if [[ "${{ needs.build.outputs.linux_artifact }}" != "" ]]; then
+              gh release upload ${{ github.ref_name }} \
+                ./release/${{ needs.build.outputs.linux_artifact }} \
+                --clobber
             fi
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # 用于认证 GitHub API
-              
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # 用于认证 GitHub API       
