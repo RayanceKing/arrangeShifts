@@ -46,15 +46,15 @@ jobs:
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
               # 压缩 Windows 产物为 ZIP 文件
               7z a -tzip release/ScheduleApp-${{ matrix.artifact_name }}.zip dist/*.exe
-              echo "::set-output name=windows::release/ScheduleApp-${{ matrix.artifact_name }}.zip"
+              echo "windows=release/ScheduleApp-${{ matrix.artifact_name }}.zip" >> $GITHUB_ENV
           elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
               # 压缩 macOS 产物为 ZIP 文件
               cd dist && zip -r ../release/ScheduleApp-${{ matrix.artifact_name }}.zip ScheduleApp.app
-              echo "::set-output name=macos::release/ScheduleApp-${{ matrix.artifact_name }}.zip"
+              echo "macos=release/ScheduleApp-${{ matrix.artifact_name }}.zip" >> $GITHUB_ENV
           else
               # 压缩 Linux 产物为 TAR.GZ 文件
               tar czvf release/ScheduleApp-${{ matrix.artifact_name }}.tar.gz -C dist .
-              echo "::set-output name=linux::release/ScheduleApp-${{ matrix.artifact_name }}.tar.gz"
+              echo "linux=release/ScheduleApp-${{ matrix.artifact_name }}.tar.gz" >> $GITHUB_ENV
           fi
       
 
@@ -63,6 +63,7 @@ jobs:
         with:
           name: ScheduleApp-${{ matrix.artifact_name }}
           path: release/*
+
           
   upload-release:
     needs: build  # 依赖于 build job
@@ -70,39 +71,39 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
+
       - name: Set up GitHub CLI
         run: |
             sudo apt install gh -y  # 安装 GitHub CLI
-        
+
       - name: Download Artifacts
         uses: actions/download-artifact@v4
         with:
-            pattern: ScheduleApp-*
-            path: ./release  # 下载构建产物
-        
+          pattern: ScheduleApp-*
+          path: ./release  # 下载构建产物
+
       - name: Check the files in ./release directory
         run: |
             echo "Listing files in ./release directory"
             ls -l ./release  # 确保目录里有正确的文件
-        
+
       - name: Upload to Release
         run: |
             echo "Uploading files to GitHub release"
-            if [[ "${{ needs.build.outputs.windows_artifact }}" != "" ]]; then
+            if [[ "$windows" != "" ]]; then
               gh release upload ${{ github.ref_name }} \
-                ./release/${{ needs.build.outputs.windows_artifact }} \
+                ./release/ScheduleApp-windows \
                 --clobber
             fi
-            if [[ "${{ needs.build.outputs.macos_artifact }}" != "" ]]; then
+            if [[ "$macos" != "" ]]; then
               gh release upload ${{ github.ref_name }} \
-                ./release/${{ needs.build.outputs.macos_artifact }} \
+                ./release/ScheduleApp-macos \
                 --clobber
             fi
-            if [[ "${{ needs.build.outputs.linux_artifact }}" != "" ]]; then
+            if [[ "$linux" != "" ]]; then
               gh release upload ${{ github.ref_name }} \
-                ./release/${{ needs.build.outputs.linux_artifact }} \
+                ./release/ScheduleApp-linux \
                 --clobber
             fi
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # 用于认证 GitHub API       
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # 用于认证 GitHub
